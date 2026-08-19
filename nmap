@@ -1,0 +1,43 @@
+the most effective host discovery technique is through ICMP echo requests
+
+-sn	       : disables port scanning
+-Pn 	       : disables ICMP echo requests
+-n	       : disables DNS resolution
+-PE 	       : Performs the ping scan using ICMP echo requests
+--packet trace : shows all packets sent and recieved
+--reason       : displays the reason why NMAP prints a result
+--disable-arp-ping : disables ARP ping requests
+--top-ports=<num>  : scans the specified top ports that have been defined as most frequent
+-p- : scans all ports
+-p22-110 : scans all ports between 22 and 110
+-p22, 110 : scans only ports 22 and 110
+-F  : scans only top 100 most common ports
+-sS : performs a TCP SYN-Scan
+-sA : performs a TCP-ACK scan
+-sU : performs a UDP scan
+-sV : scans the discovered services for their version
+-sC : perform a script scan with scripts categorised as 'default'
+--script <script> : performs a script with the specified script
+-O : OS detection
+-A : performs OS detection, service detection, and traceroute scans
+-D RND:5 : sets the numver of random decoys that will be used to scan the target
+-e : Specifies the network interface to be used for the scan
+-S 10.10.10.200 : specifies the source IP address for the scan
+-g : specifies the port for the scan
+--dns-server <ns> : DNS resolution is performed by using a specific name server
+-oA <filename> : stores the results in all formats in a file
+-oN <filename> : stores the results in normal format with the specified file
+-oG <filename> : stores the results in a grepable format
+-oX <filename> : stores the results in an XML file
+--max-retries <num> : sets the number of retries
+--stats-every=5s : displays the scans status every 5 seconds
+-v/-vv : displays the verbose output of the scan (v- verbose, vv- very verbose)
+--initial-rtt-timeout 50ms : sets the specified time value as initial RTT timeout
+--max-rtt-timeout : sets the max RTT timeout
+--min-rate 300 : sets the number of packets tat will be sent at the same time
+-T <0-5> : specifies the specific timing template
+--script <category> : sets the scan to run with a certain script category. categories are: auth, boradcast, brute, default, discovery, dos, exploit, external, fuzzer, intrusive, malware, safe, version, vuln.
+to turn xml to html, use xsltproc
+
+to update nmap scripts, do:
+sudo nmap --script-updatedb
