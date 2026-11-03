@@ -1,0 +1,665 @@
+What can we see?
+Why can we see it?
+How does it help us understand the target?
+What do we gain from it?
+How can we use it?
+What can't we see?
+why cant we see it?
+How does it help us understand the target?
+
+1. Open all roads before setting down one
+2. Distinguish between what we can and cannot see
+3. There is always more information to discover
+
+There are 3 stages of enumeration:
+__**Infrastructure based Enumeration**__
+__Internet presence__
+Domains
+Subdomains
+vHosts
+ASN
+Netblocks
+IP Addresses
+Cloud Interfaces
+Security Measures
+
+__Gateway__
+Firewalls
+DMZ
+IPS/IDS
+EDR
+Proxies
+NAC
+Network Segmentation
+VPN
+Cloudflare
+
+__**Host Based Enumeration**__
+__Accessible Services__
+Service Type
+Functionality
+Configuration
+Port
+Version
+Interface
+
+__Processes__
+PID
+Processed Data
+Tasks
+Source
+Destination
+
+__**OS Based Enumeration**__
+__Privileges__
+Groups
+Users
+Permissions
+Restrictions
+Restrictions
+Environment
+
+__OS Setup__
+OS Type
+Patch Level
+Network Config
+OS Environment
+Configuration Files
+Sensitive Private Files
+
+
+One great way to find subdomains is by reading certificate transparency logs, found on crt.sh
+
+we can also look at DNS records by using the dig command, followed by the website name.
+
+in the output:
+'A' record recognises the ip addresses associated with the target
+'MX' Records show us which mail server is responsible for managing the emails of the company
+'NS' Records show us which name servers are used to resolve the FQDN to IP addresses. Most hosting providers use their own name servers, making it easier to identify the hosting provider.
+'TXT' records contain various verification keys for different third party providers and other security aspects of DNS, such as SPF, DMARC, and DKIM, which are responsible for verifying and confirming the origins of the emails sent. this is valuable information.
+
+there are a few good ways to identify cloud servers. when using previous commands, we can sometimes see the domain for an AWS, Azure, or GCP server in the url for the server. this, paired with the associated IP address, makes it abundantly clear which servers exist on the cloud.
+
+we can also use google dorks. by using the following flags, we can accurately identify the cloud servers.
+
+intext:{company name}
+inurl:{amazonaws.com/blob.core.windows.net/any other cloud service addess
+
+this can expose subdomains, as the revealed files may contain them in pdf form, plaintext, codes, presentations, etc.
+
+we can also use domain.glass and GrayHatWarfare to gather more information
+
+Ideally, one of these methods will expose critical information, and maybe even an entry path
+
+additionally, looking at job posts from the company on sites like linkedin or xing can allow us to discern even more information. This is because often job listings reveal what is required for new employees to know, which can allow us to identify services used by the company. use wayback machine to find job listings that may yield older, more crucial data.
+
+on said job listings, see if its possible to dig deeper into any active employees, and see if credentials can be gathered on them, these may be exposed through things like github.
+
+FTP
+in active ftp, machine 1 can contact a server and ask for a control channel to be established on FTP port 21, and a data channel on port 20. 
+in passive ftp, the machine may be blocked by the firewall from establishing the data channel, so the server must instead respond with the port for the control channel, thus bypassing the restriction (should port 21 be free to use the network)
+
+TFTP
+(trivial FTP)
+does not provide user authentication, but uses UDP instead, so if a fragment of data is missed, the download will be corrupted
+only ever used on protected interior networks
+
+vsFTPd
+this is one fo the most used FTP servers on linux-based distrobutions. the default config can be found in /etc/vsftpd.conf.
+
+in /etc/ftpusers, we can see a list of users who arent allowed to connect via ftp
+
+when connected to a target via ftp, we can use the 'status' command to exfiltrate extremely valuable info about the ftp server
+
+by doing ls -R we can incur recursive listing, revealing possible even more info.
+
+to download a file over ftp, we use the get command (if the filename has a space, use a backslash before it, e.g: 'spaceafter this' would become 'spaceafter\ this'.)
+
+if we want to be blatant with our attack, and download all files available at once, we can do: 
+wget -m --no-passive ftp://anonymous:anonymous@ip_addr
+
+we can also use the 'put' command to move a file from the directory we started the ftp connection in, into the target server.
+
+if we can, try to use openssl, as this allows us to get the ssl certificate. 
+openssl s_client -connect ip_addr:21 -starttls ftp
+
+the certificate allows us to get the hostname and email address in some cases, which is useful.
+
+SMB
+
+SMB regulates access to files and entire directories and other network resources such as printers, routers, or other interfaces released for the network.
+
+what we're interested in is the ACL(attribute control lists), as these control which users, or user groups, can do gain attributes like 'execute', 'read', 'full access'. these would allow us access to the files stored on the SMB share specified.
+
+Samba is SMB made for Unix based systems, but it works for windows too.
+
+we can find the samba settings at /etc/samba/smb.conf
+
+this acts just like the ftp settings, wherin we are able to see all the configurations used by samba, allowing us to find out what ae are and arent able to do, and also what smb will do under certain circumstances. we can see the settings for each network share surrounded by hard brackets
+
+with smbclient, we can use the following flags:
+-N : null session (anonymous login)
+-L : List server shares
+
+for example, to see the shares on an smb host with no login requirement, we could do:
+smbclient -N -L //ip_addr
+to connect to a specific share, we remove the flags, and append /sharename just after the IP address
+
+to download files off of SMB, we use the get commnad
+
+to get info about the host, if they are using samba, we can use smbstatus.
+
+We can use RPC client to connect to the smb share for enumeration further than nmap.
+
+to connect with RPC client, we do:
+rpcclient -U "{username here, blank for anonymous}" ip_address
+
+when conencted,there are a few useful commands we can run:
+srvinfo - server information
+enumdomans - enuumerate all domains that are deployed in the network
+querydominfo - provides domain, serer, and user information of deployed domains
+netshareenumall - enumerates all available shares
+netsharegetinfo {share} -  provides info about a specified share
+enumdomusers - enumerates all domain users
+queryuser {RID} - provides information about a specific user
+querygroup {RID} - provides information about a specific group
+
+the RID can be found from enumdomusers
+
+we can also use a bash fixed loop to brute force the RID's of users should we be disallowed from using commands.
+
+for i in $(seq 500 1100);do rpcclient -N -U "{username here, blank for anonymous}" ip_address -c "queryuser 0x$(printf '%x\n' $i)" | grep "User Name\|user_rid\|group_rid" && echo "";done
+
+we could also use a script from the impacket kit called samrdump.py (samrdump.py ip_address)
+
+we can also use other tools, like SMBMap and CrackMapExec
+
+SMBMap usage:
+smbmap -H ip_address
+
+CrackMapExec usage:
+crackmapexec smb ip_address --shares -u '{username here, blank for anonymous}' -p'{password here, blank for no pass}'
+
+we can also use enum4linux-ng
+usage:
+./enumforlinug-ng.py ip_address -A
+
+
+
+NFS
+Network File System has been the internet standard for file sharing, allowing machines to share files as if they were on the same network. NFSv3 does not require authentication, but NSFv4 does.
+
+to find the NSF config settings, we can read /etc/exports
+rw - read and write permissions
+ro - read only permissions
+sync - Synchronus data transfer (a bit slower)
+async - Asynchronus data transfer (a bit faster)
+secure - ports above 1024 will not be used
+insecure - ports above 1024 will be used
+no_subtree_check - this option disables the use of checking subdirectory trees
+root_squash - assigns all permissions to files of root UID/GID 0 to the UID/GID of anonymous, which prevents root from accessing files on an NFS mount.
+
+dangerous settins include:
+rw - read and write permissions
+insecure - ports above 1024 will be used
+nohide - If another file system was mounted below an exported directory, this directory is exported by its own exports entry
+no_root_squash - All files created by root are kept with the UID/GID 0
+
+when footprinting NFS, the TCP ports 111 and 2049 are essential.
+
+to use NSE scripts to enumerate NFS, we can use the handle --script NFS*
+(Wildcards work when using NSE scripts!)
+
+once we have discovered an NFS service, we can mount it on our local machine. we should create an empty folder to which the NFS share will be mounted. once mounted, we can navigate and view it just like our own file system.
+
+to show available NFS shares, we can do:
+showmount -e ip_address
+
+to mount a share:
+sudo mount -t nfs {ip_address}:/{target_share} {local_share} -o nolock
+cd local_folder
+tree(to show the available files)
+
+to list the contents of the nfs share with usernames and group names, we can do:
+ls -l /mnt/nfs/
+
+to do this with UIDs and GUIDs:
+ls -n mnt/nfs/
+
+to unmount, we'd cd out of the mounted share, before running:
+sudo umount ./local_folder
+
+
+DNS
+
+Domain name system resolves the ip address for a requested server by name.
+
+there are several types of DNS server used worldwide:
+DNS root server - these are responsivle for the top level domains. they are only requested if the name server does not respond. Thus, a root server is a central interface between users and the content on the internet, as it links domain and IP address. The internet corporation for assigned names and numbers(ICANN) coordinates the work of the root name servers. there are 13 such root servers around the globe.
+Authoritative name server - these hold authority for a perticular zone. They only answer queries from their area of responsibility, and their information is binding. If an authoratiative name server cannot answer a client's query, the root name server takes over at that point. Based on the country, company, etc., authoritative nameservers provide answers to recursive DNS nameservers, assisting in finding the specific web server(s).
+Non-Authoritiative name server - not responsible for a particular DNS zone. instead, they collect information on specific DNS zones themselves, which is done using recursive or iterative DNS querying
+Caching DNS server - these cache information from other name servers for a specified period. the authoritative name server determines the duration of this storage.
+forwarding server - these forward DNS queries to another DNS server
+resolver - these are not authoritative name servers, but perform name resolution locally in the computer or router.
+
+DNS records look as follows:
+
+A - returns an IPv4 address of the requested domain
+AAAA - returns an IPv6 address of the requested domain.
+MX - Returns the  responsible mail server
+NS - returns the DNS servers of the domain
+TXT - this record can contain various information. also, SPF and DMARC entries are set to validate mail traffic and protect it from spam.
+CNAME - this record acts as an alias for another domain name. If you want the domain www.example.eu to point to the same IP as example.eu, you would create an A record for example.eu and a CNAME record for www.example.eu
+PTR - this works the other way around, by converting IP addresses into valid domain names.
+SQA -  provides information about the corresponding DNS zone and email address of the administrative contact.
+
+the DNS server Bind9 is used often on linux based distros.
+
+the local config files are usually:
+named.conf.local
+named.conf.options
+named.conf.log
+
+dangerous settings:
+allow-query - Defines which hosts are allowed to send requests to the DDNS server
+allow-recursion - Defines which hosts are allowed to send recursive requests to the DNS server.
+allow-transfer - Defines which hosts are allowed to recieve zone transfers from the DNS server.
+zone-statistics - Collects statistical data of zones
+
+Footprinting DNS
+
+one way we can gather information on DNS servers is by using dig. for example:
+
+dig ns google.com @{ip_address_of_ns}
+
+we can also query a DNS servers version using a class CHAOS query and type TXT. this entry must exist on the DNS server however.
+
+dig CH TXT version.bind {ns_ip_address}
+
+we can also do:
+dig any example.com @{ns_ip_address}
+
+additionally, we can look at asynchronus zone transfers:
+
+dig axfr example.com @{ip_address}
+
+If the administrator used a subnet for the allow-transfer option for testing purposes or as a workaround solution or set it to any, everyone would query the entire zone file at the DNS server. In addition, other zones can be queried, which may even show internal IP addresses and hostnames.
+
+dig axfr internal.example.com @{ip_address}
+
+this can be useful for subdomain brute forcing.
+
+we can also use tools, like DNSenum:
+
+dnsenum --dnsserver {ip_address} --enum -p 0 -s 0 -o subdomains.txt -f /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt example.com
+
+
+
+SMTP
+this is the Simple Mail Transfer Protocol, used for sending emails in an IP network.
+This is often combined with IMAP and POP3 protocols, which can fetch and send emails.
+operates on ports 25 and in newer cases, 587
+SMTP servers are often misused to send spam mail en masse, as it can be easily used for mail spoofing.
+the secure version of SMTP that requires authentication is ESMTP(extended server mail transfer protocol)
+we can find the config for an smtp server at /etc/postfix/main.cf
+to connect to the SMTP server, we use telnet to initialise a tcp connection with the server. the actual initialization of the session is done with the command HELO or EHLO
+we use the command HELO on a subdomain (e.g mail.example.com)
+we use the EHLO command on the specific domain name, excluded from the rest of the website (e.g mail)
+The command VRFY can be used to enumerate existing users on the system. However, this does not always work. Depending on how the SMTP server is configured, the SMTP server may issue code 252 and confirm the existence of a user that does not exist on the system.
+we can only do this for specific usernames on the mail server, like:
+VRFY root
+
+252 2.0.0 root
+
+this is why we should never trust automatic tools entirely, as there is no way of telling if the account really exists if we get 252 back.
+we can also use EHLO to interact with a broader network, like:
+EHLO example.com
+
+DANGEROUS SETTINGS
+to prevent the sent emails being filtered by spam filters and not reaching the recipient, the sender can use a relay server that the recipient trusts.
+its an smtp server that is known and verified by all others.
+often, admins have no clue what IP addresses to allow, so they allow all, so that business can flow as usual. 
+this leads the attack vector for spoofing an email address, connecting to the SMTP server, and reading someones emails.
+the default nmap scripts include smtp-commands, which uses the EHLO command to ist all possible commands that can be executed on the SMTP server
+we can also use the smtp-open-relay NSE script to identify the target SMTP server as an open relay.
+when enuming for users, use smtp-user-enum
+smtp-user-enum -M VRFY -U wordlist -t IP_addr -W {timeout}
+
+
+IMAP/POP3
+IMAP - Internet message access protocol - port 143
+POP3 - Post office control protocol (3)
+
+IMAP allows online management of emails directly on the server and supports folder structures.
+POP3 allows only listing, reading, and deleting emails.
+
+IMAP
+1 LOGIN username password	User's login.
+1 LIST "" *	Lists all directories.
+1 CREATE "INBOX"	Creates a mailbox with a specified name.
+1 DELETE "INBOX"	Deletes a mailbox.
+1 RENAME "ToRead" "Important"	Renames a mailbox.
+1 LSUB "" *	Returns a subset of names from the set of names that the User has declared as being active or subscribed.
+1 SELECT INBOX	Selects a mailbox so that messages in the mailbox can be accessed.
+1 UNSELECT INBOX	Exits the selected mailbox.
+1 FETCH <ID> all	Retrieves data associated with a message in the mailbox.
+1 FETCH 1 BODY.PEEK[TEXT] Returns the contents of the body of an email. (USE AFTER FETCH)
+1 CLOSE		Removes all messages with the Deleted flag set.
+1 LOGOUT	Closes the connection with the IMAP server.
+
+POP3
+USER username	Identifies the user.
+PASS password	Authentication of the user using its password.
+STAT	Requests the number of saved emails from the server.
+LIST	Requests from the server the number and size of all emails.
+RETR id	Requests the server to deliver the requested email by ID.
+DELE id	Requests the server to delete the requested email by ID.
+CAPA	Requests the server to display the server capabilities.
+RSET	Requests the server to reset the transmitted information.
+QUIT	Closes the connection with the POP3 server.
+
+DANGEROUS SETTINGS
+
+auth_debug - Enables all authentication debug logging
+auth_debug_passwords - this adjusts log verbosity, the submitted passwords, and the scheme get logged
+auth_verbose - logs unsuccessful authentication attempts and theyr reasons
+auth_verbose_passwords - passwords used for authentication are logged and can also be truncated
+auth_anonymous_username - this specifies the username to be used when logging in with the ANONYMOUS SASL machanism
+
+Footprinting the service
+By default, ports 110 and 995 are used for POP3, and ports 143 and 993 are used for IMAP. The higher ports (993 and 995) use TLS/SSL to encrypt the communication
+
+To connect to the server and interact with pop3, do:
+openssl s_client -connect {IP_address}:pop3s
+
+for IMAP, do:
+openssl s_client -connect {IP_address}:imaps
+
+
+SNMP
+Simpe Network Management Protocol was created in order to monitor network devices. This can also be used to handle configuration tasks and change settings remotely. SNMP enabled hardware  incudes routers, switches, servers, IoT devices, and many others. SNMP transmits control commands usung agents over UDP port 161. SNMP also uses "traps" over UDP port 162. These are data packets sent from the SNMP server to the client without being explicitly requested.If a device is configured accordingly, an SNMP trap is sent to the client once a specific event occurs on the server-side. A prerequisite for SNMP functionality is unique identifiers for each device that is known by each device.
+
+MIB(sub-heading)
+To ensure that SNMP access works across manufacturers and with different client-server combinations, the Management Information Base was created. MIB is an independent format for storing device information. It is a text file in which all queryable SNMP objects of a device are listed in a standardized tree hierarchy. It contains at least one Object Identifier (OID), which in additin to the necessary unique address and a name, also provides information about the type, access rights, and a descriotion of the respective object. MIB files are written in the Abstract Syntax Notation One (ASN.1) based ASCII text format. The MIB's do not contain data, but they explain where to find which information and what it looks like, wich returns values for the specific OID, or which data type is used.
+
+OID(sub-heading)
+An OID represents a node in a hierarchical namespace. A sequence of numbers uniquely identifies each node, allowing the node's position in the tree to be determined. The longer the chain, the more specific the information. Many nodes in the OID tree contain nothing except references to those below them. The OIDs consist of integers and are usually concatenated by dot notation. We can look up many MIBs for the associated OIDs in the Object Identifier Registry.
+
+SNMPv1(Sub-Heading)
+SNMPv1 is the first version of the protocol and is still used in many small networks. It supports the retrieval of information from network devices, allows for the configuration of these devices, and provides traps, which are notifications of events. However, it has no in built authentication mechanism, meaning any device accessing the network can read and modify network data. Another main flaw of SNMPv1 is that it doesnt support encryption.
+
+SNMPv2(Sub-heading)
+SNMPv2 existed in different versions. The version that still exists today is v2c, and the extention c means community based snmp. Reguarding security, SNMPv2 is on par with SNMPv1 and has been extended with additional functions from the party-based SNMP no longer in use. However, a significant problem with the initial execution of the SNMP protocol is that the community string that provides security is only transmitted in plain text, meaning it has not built in encryption
+
+SNMPv3(Sub-heading)
+The security has been increase enormously for SNMPv3 by security features like authentication, using username and password and transmissions encryption(via pre-shared key) of the data. However, the complexity also increases to the same extent, with sinificantly more configuration options than vc2.
+
+Community strings
+Community strings can be seen as passwords that are used to determine whether the requested infrmation can be viewed or not. It is important to note that many organizations are still using SNMPv2, as the ransition to SNMPv3 can be very complex, but the services still need to remain active. This cuases many administrators a great deal of concern and creates some problems they are keen to avoid. The lack of knowledge about how the information can be obtained and how we as attackers use it makes the administrators approach seem inexplicable. At the same time, the lack of encryption of the data sent is also a problem. Because every time the community strings are sent over the network, they can be intercepted and read
+
+
+Dangerous settings
+rwuser noauth - provides access to the full OID tree without authentication
+rwcommunity <community string> <IPv4 address> - provides access to the full OID tree reguardless of where the requests are sent from
+rwcommunity6 <community string> <IPv6 address> - same as rwcommunity, with the difference of using IPv6
+
+in the case of a misconfiguration, we can do:
+snmpwalk -v2c -c {community_string} {IP_address}
+
+
+from our snmpwalk (assuming it worked), we can recognize some of the python packages that have been installed on the system. If we do not know the community string, we can use onesixtyone and SecLists wordlists to identify these community strings:
+onesixtyone -c /path/to/seclists/DIscovery/SNMP/snmp.txt {ip_address}
+
+Often, we find that community strings are bound to specific IP addresses via their hostname. these are often obfuscated with symbols, to make them harder to identify. due to this, we can use crunch to create custom wordlists in order to find them.
+
+once we know the community sting, we can use braa to brute force the individual OIDs and enumerate the information behind them:
+
+braa {community_string}@{IP_address}:.1.3.6.*
+
+you can search directly for files uncovered inside the terminal
+
+
+
+MySQL
+MySQL is an open source SQL relational database management system. the database is controled by SQL, and MySQL acts as an IDE.
+The MySQL clients can retrieve and edit the data using structured queries to the databse engine. Inserting, deleting, modifying, and retrieveing data is done with the SQL databse language.
+
+Dangerous settings
+user		- sets which user the MySQL service will run as
+password	- sets the password for the MySQL user
+admin_address	- The IP on which to listen for TCP/IP connections on the administrative network interface
+debug		- This variable indicates the current debugging settings
+sql_warnings	- This variable controls wether single-row INSERT statements produce an information string if warnings occur
+secure_file_priv- This variable is used to limit the effect of data import and export options.
+
+user, password, and admin_address are useful, because MySQL config files are often assigned faulty permissions.
+
+
+Footprinting the service
+MySQL operates on TCP port 3306, so we can scan it with mysql* scripts, like:
+nmap {target_ip} -sV -sC -p3306 --script mysql*
+
+we can connect to MySQL (with a username and password) by doing:
+myql -u root -pP455W0rd -h {ip_address} (append --skip-ssl if certificate error CTF ONLY)
+omitting -p results in no entered password
+
+when connected, we can use commands like:
+show databases; (the most valuable to us are information_schema, sys)
+select version();
+use {database_name}; (followed by)
+show tables;
+show columns from {table};
+once we know the table names, we can use typical SQL statements, like:
+select * from {table};
+
+
+MSSQL
+Microsoft SQL is microsofts SQL-based relationa database management system. it is closed source. SQL server Management Studio (SSMS) comes as a feature that an be installed with the MSSQL install package or can be downloaded and installed seperately. It is usually used for the initial setup and long term maintainence of a server. Since it is client side, it can be installed on any machine that the databse admin plans on using. the danger of this is that if we find a machine with SSMS, we can find the login credentials, and sign into the database, before exfiltrating data
+
+other clients that may end up connected to MSSQL are:
+mssql-cli	SQL Server PowerShell		HeidiSQL	SQLPro		Impacket's mssqlclient.py
+
+MSSQL has default system databases that can help us understand the structure of all the databases that may be hosted on a target server. such as:
+
+master		Tracks all system information for an SQL server instance
+model		Template database that acts as a structure for every new database created. Any setting changed in the model database will be reflected in any new database created after changes to the model database
+msdb		The SQL server agent uses this database to schedule jobs and alerts
+tempdb		Stores temporary objects
+resource		Read only database containing system objects included with SQL server
+
+MSSQL is typically ran with NT SERVICE\MSSQLSERVER
+
+Dangerous settings
+as databases are custom configured to the needs of their clients, there arent many definitive dangerous settings, but things worth looking into are:
+MSSQL clients not using encryption to connect to the MSSQL server
+The use of self-signed certificates when encryption is being used. it is possible to spoof self signed certs
+the use of named pipes(a windows communication protocol that allows client applications and the database engine to talk to each other on the same comouter or a local network)
+weak and default sa credentials, admins may forget to disable this account
+
+footprinting
+to scan with the scripts configured correctly, we'd do:
+sudo nmap --script ms-sql* --script-args mssql.instance-port=1433,mssql.username=sa,mssql.password=,mssql.instance-name=MSSQLSERVER -sV -p1433 {IP_address}
+
+we can also do use the metasploit module auxiliary/scanner/mssql/mssql_ping, in order to enumerate more useful info, likw the server name, instance name, Version, port, and named pipe
+
+if we can get valid credentials, we can connect and interact with the databse using T-SQL(transact-sql). to do this, we use impacket's mssqlclient.py.
+
+./mssqlclient.py {username}:{Password}@{ip_address} -windows-auth
+
+
+ORACLE TNS
+
+Oracle Transparent Network Substrate is a communications protocol that facilitates communicationbetween oracle databases and applications over networks. Uses encryption by default
+
+
+operates on port 1521 by default
+
+oracle TNS often operates with Oracle DBSNMP, Oracle Databases, Oracle Application Server, Oracle Enterprise Manager, Oracle Fusion Middleware, web servers, and others.
+
+each database or service has a unique entry in the tnsnames.ora file.
+
+to test Oracle TNS, we will be using ODAT(Oracle Database Attack Tool)
+
+Cant get ODAT to function.
+
+
+IPMI
+The Intelligent Platform Management Interface is a set of standardised specifications for hardware-based host management systems used for system management and monitoring. IPMI works independent of the operating system and the BIOS. it is typically used in the following ways:
+Before the OS has booted to modify BIOS settings
+when the host is fully powered down
+Access to a host after a system failiure
+
+Footprinting
+IPMI communicates over port 623 UDP.
+we can enumerate the version using the script ipmi-version
+
+we can also use the metasploit module auxiliary/scanner/ipmi/ipmi_version
+
+often, the IPMI password is not changed. some common passwords by product are:
+
+Dell iDRAC 		root:calvin
+HP iLO			Administrator:random 8 character string consisting of numbers and uppercase letters(cewl)	
+Supermicro IPMI		ADMIN:ADMIN
+
+if default credentials do not work, we can utilise a flaw in the RAKP protocol in IPMI 2.0
+during authentication, the server sends a salted SHA1 or MD5 hash of the users password before any authentication takes place. This allows us to get the password for any valid user account. These hashes can then be cracked offline.
+for HP iLO passwords, we'd use: hashcat -m 7300 ipmi.txt -a 3 ?1?1?1?1?1?1?1?1 -1 ?d?u		This would crack the password based on the defined rules
+This is very difficult to fix, as it is a core component of IPMI, so instead, sysadmins rely on long, complex, hard to crack passwords.
+
+to dump these intercepted hashes, we use the metasploit module auxiliary/scanner/ipmi/ipmi_dumphashes
+
+to find the correct vendor in order to enum usernames, we can look at other services like ssh or telnet (to find the vendor), check the ip address in a browser, or check the MAC address.
+
+
+instead of having to send the hash that we retrieve via metasploit to hashcat, we can simply set the passwords file to rockyou.txt inside the metasploit module
+
+
+Linux Remote Management Protocols
+SSH
+SSH communicates on port 22. it means SecureShell
+
+there are 2 ssh protocols, SSH-1 and SSH-2. SSH-2 is a more advanced in encryption, speed, stability and security, wheras SSH-1 may be more vulnerable to MITM attacks, whereas SSH-2 is not
+
+OpenSSH has 6 authentication methods:
+
+Password authentication
+Public-key authentication
+Host-based authentication
+Keyboard authentication
+Challenge-response authentication
+GSSAPI authentication
+
+Dangerous settings
+PasswordAuthentication yes		allows password based authentication
+PermitEmptyPasswords yes		Allows the use of empty passwords
+PermitRootLogin yes			Allows to log in as the root user
+Protocol 1				Uses an outdated version of encryption
+X11Forwarding yes			Allows X11 forwarding for GUI applications
+AllowTcpForwarding yes			Allows forwarding of TCP ports
+PermitTunnel				Allows Tunneling
+DebianBanner yes			Displays a specific banner when logging in
+
+footprinting the service
+one of the tools we can use is ssh-audit
+
+For potential brute-force attacks, we can specify the authentication method with the SSH client option PreferredAuthentications.
+
+Rsync is a fast and efficient tool fo locally and remotely copying files. it uses port 873
+
+when on a network, to check for accessible shares, we do:
+nc -nv 127.0.0.1 873
+
+when/if we find open shares, we can do:
+
+rsync -av --list-only rsync://127.0.0.1/{sharename}
+
+following that, we can then use r-commands, like:
+rcp		the equivalent of cp
+rsh		opens a shell without a login procedure.
+rexec		enables a user to run shell commands. requires authentication using username and password through an unencrypted network socket
+rlogin		Enables a user to log into a remote host over the network. works similarly to Telnet
+
+to footprint r-commands, we can check the ports 512 through to 514
+
+to login, we use rlogin, with the following syntax:
+
+rlogin {ip_address} -l htb-student
+
+we can list authenticated users using:
+
+rwho (when logged in)
+rusers -al {ip_address} (when not logged in)
+
+
+Windows Remote management protocols
+
+remote management is enabled by default from windows server 2016 onwards.
+the three main services for windows remote management are:
+Remote Desktop Protodol (RDP)
+
+Windows Remote Management (WinRM)
+
+Windows Management Instrumentation (WMI)
+
+
+RDP
+This protocol allows display and control commands to be transmitted via the GUI encrypted over IP networks.
+RDP works at the applocation layer of the TCP/IP model, using port 3389. to connect across two different networks, port forwarding needs to be set up on the hosting router, and the RDP connection must be allowed, as most routers disallow these conenctions by default, for obvious reasons. A workaround that companies often use is a VPN, as this bypasses the need to enable this dangerous setting on their router, as well as not needing to set up port forwarding.
+
+by default, RDP uses TLS/SSL, but in some cases, less secure encryption methods are allowed via RDP security. Despite this use of proper encryption, the certificates are still self signed, meaning an attacker isnt truly blocked from accessing a network because of this security feature. The remote desktop service is installed by default on windows servers and does not require additional external applications. The service can be activated using the server manager, and comes with the default setting to allow connections to the service only to hosts with Network level authentication (NLA)
+
+Footprinting
+We can simply scan the default RDP port with the handle: --script rdp* in order to scan with all rdp scripts. This will reveal things like the hostname, the version, and other potentially useful information. However, in an actual deployment, we can see that the RDP cookies(mstshash=nmap) used by nmap to interact with the RDP server can be identified easily, which will likely lock us out on hardened networks
+
+To check RDP settings without authenticating to the server, we can use the tool rdp-sec-check.pl (Look in Tools folder), with the syntax:
+./rdp-sec-check.pl {ip_address}
+
+to initiate an RDP session, we can use the syntax:
+xfreerdp /u:{username} /p:"{password}" /v:{ip_address}
+
+
+
+
+WinRM
+The Windows Remote Management(WinRM) is a simple windows command line remote management protocol. it relies on ports 5985(HTTP) and 5986(HTTPS) for communication. a component of WinRM is Windows Remote Shell (WinRS), which lets us execute commands on the remote system. Services like remote sessions using PowerShell and event log merging require WinRM. It is enabled by default starting with Windows Server 2012, but it must be configured for older server versions and clients, with the necessary firewall exceptions created.
+
+Footprinting
+We can often observe that we will only see port 5985(HTTP) being used instead of 5986(HTTPS)
+
+to scan with nmap, we would just use -sC and -sV on the correct ports.
+
+to connect, or test if a connection is possible to a target, we will use evil-winrm, with the syntax:
+
+evil-winrm -i {ip_address} -u {username} -p {password}
+
+
+WMI
+WMI allows read and write access to almost all settings on windows systems.
+
+Footprinting
+The initialisation of WMI communication always takes place on TCP port 135, and after the successful establishment of the connection, the communication is moved to a random port.
+
+in order to gain a foothold via WMI, we would use Impackets wmiexec.py with the following syntax:
+
+wmiexec.py {domain}/{username}:"{password}"@{ip_address}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

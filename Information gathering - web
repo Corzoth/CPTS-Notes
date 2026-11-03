@@ -1,0 +1,409 @@
+The primary goals of web recon include:
+
+Identifying assets - Target addresses, web pages, subdomains, technologies
+Discovering hidden info - backups, config files, internal documentation
+Analysing the attack surface - looking for possible vulnerabilities and weaknesses, look at tech used, configs, and possible entry points
+Gathering Intelligence - collecting for attacks further up the chain/exploits and social engineering tasks. looking for key personnel, email addresses, behaviours.
+
+Types of reconnaissance
+active - actively looking for information, includes activities not done by typical users, so this may stand out to analysts
+passive - blending in with normal traffic and analysing as far as possible. typically yields less information, but is harder to detect
+
+Active recon
+
+Port scanning - high risk - Nmap, Masscan, Unicornscan
+Vulnerability scanning - high risk - Nessus, OpenVAS, Nikto
+Network Mapping - medium/high - Traceroute, Nmap
+Banner grabbing - Low - Netcat, curl
+OS Fingerprinting - Low - Nmap, Xprobe2
+Service Enumeration - Low - Nmap
+Web Spidering - Low/medium - Burp Suite Spider, OWASP ZAP Spider, Scrapy
+
+Passive recon
+
+Search Engine Queries - VLow - Google, other search engines (Shodan)
+WHOIS Lookups - VLow - WHOIS CLI tool, online WHOIS services
+DNS - VLow - dig, nslookup, host, dnsenum, fierce, dnsrecon
+Web Archive Analysis - VLow - wayback machine
+Social Media Analysis - VLow - any social media platform/OSINT tool
+Code Repositories - VLow - GitHub, GitLab
+
+WHOIS
+essentially the giant phonebook for the internet
+each entry contains:
+Domain Name: The domain name itself
+Registrar: The company who registered it
+Registrant Contact: The person or org that registered the domain
+Administrative Contact: The person responsible for managing the domain
+Creation and Expiration Dates: When the domain was registered and when its set to expire
+Name Servers: servers that translate the domain name into an IP address
+
+WHOIS is critical for identifying key perssonel, discovering network infrastructure, and historical data analysis (Look at historical data with WhoisFreaks)
+
+
+DNS
+DNS is like the internets GPS, it translates website addresses to and from basic IP addresses in order for a more user friendly browsing experience
+
+Your Computer Asks for Directions (DNS Query): When you enter the domain name, your computer first checks its memory (cache) to see if it remembers the IP address from a previous visit. If not, it reaches out to a DNS resolver, usually provided by your internet service provider (ISP).
+
+The DNS Resolver Checks its Map (Recursive Lookup): The resolver also has a cache, and if it doesn't find the IP address there, it starts a journey through the DNS hierarchy. It begins by asking a root name server, which is like the librarian of the internet.
+
+Root Name Server Points the Way: The root server doesn't know the exact address but knows who does – the Top-Level Domain (TLD) name server responsible for the domain's ending (e.g., .com, .org). It points the resolver in the right direction.
+
+TLD Name Server Narrows It Down: The TLD name server is like a regional map. It knows which authoritative name server is responsible for the specific domain you're looking for (e.g., example.com) and sends the resolver there.
+
+Authoritative Name Server Delivers the Address: The authoritative name server is the final stop. It's like the street address of the website you want. It holds the correct IP address and sends it back to the resolver.
+
+The DNS Resolver Returns the Information: The resolver receives the IP address and gives it to your computer. It also remembers it for a while (caches it), in case you want to revisit the website soon.
+
+Your Computer Connects: Now that your computer knows the IP address, it can connect directly to the web server hosting the website, and you can start browsing.
+
+Digging DNS
+
+there are many tools for enumerating DNS:
+
+dig - manual dns queries, troubleshooting dns issues, in depth analysis of dns records
+nslookup - basic dns queries, quick checks of domain resolution and mail server records
+host - quick check of A, AAAA, and MX records
+dnsenum - discovering subdomains and gathering DNS information efficiently
+fierce - User friendly UI for DNS recon, identifying subdomains and potential targets
+dnsrecon - comprehensive DNS enumeration, identifying subdomains, and gathering DNS records for further analysis
+theHarvester - collecting emails, employee info, and other data associated with a domain from multiple sources
+Online DNS lookup services - Quick and easy DNS lookups
+
+
+Additionally, we can find the hosts file on our own machines, which allow us to associate an address with an IP address
+
+Looking at DNS records allows us to uncover assets on the target network, map the internal infrastructure through assumptions we make about how the servers communicate. Finally, we can also look for changes in the DNS records.
+
+Common dig Commands
+Command	Description
+dig domain.com		Performs a default A record lookup for the domain.
+dig domain.com A	Retrieves the IPv4 address (A record) associated with the domain.
+dig domain.com AAAA	Retrieves the IPv6 address (AAAA record) associated with the domain.
+dig domain.com MX	Finds the mail servers (MX records) responsible for the domain.
+dig domain.com NS	Identifies the authoritative name servers for the domain.
+dig domain.com TXT	Retrieves any TXT records associated with the domain.
+dig domain.com CNAME	Retrieves the canonical name (CNAME) record for the domain.
+dig domain.com SOA	Retrieves the start of authority (SOA) record for the domain.
+dig @1.1.1.1 domain.com	Specifies a specific name server to query; in this case 1.1.1.1
+dig +trace domain.com	Shows the full path of DNS resolution.
+dig -x 192.168.1.1	Performs a reverse lookup on the IP address 192.168.1.1 to find the associated host name. You may need to specify a name server.
+dig +short domain.com	Provides a short, concise answer to the query.
+dig +noall +answer domain.com	Displays only the answer section of the query output.
+dig domain.com ANY	Retrieves all available DNS records for the domain (Note: Many DNS servers ignore ANY queries to reduce load and prevent abuse, as per RFC 8482).
+
+
+
+subdomains
+it is important to check subdomains as we can find development environments, hidden login portals, legacy applications, and sensitive information
+
+active
+we can try a DNS zone transfer, where a misconfigured server might leak a complete list of subdomains. However, due to tightened security measures, this will likely not be successful
+
+we can also do brute force enumeration, where we check for subdomains based off a predefined list of possibilities, using tools like dnsenum, ffuf, and gobuster.
+
+
+passive
+we can check the Certificate Transparency logs, as they include a list of associated subdomains.
+
+we can also use google dorking, by using the 'site:' handle
+
+additionally, various online databases and tools agregate DNS data from multiple sources, allowing you to search for subdomains without ever touching the target
+
+to find subdirectories, we can use dnsenum. for example:
+dnsenum --enum inlanefreight.com -f /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
+
+
+DNS zone transfers
+
+while dns brute forcing is typically fruitful, its quieter to look at DNS zone transfers. they exist to replicate DNS records between name servers, and can become a goldmine for information for us. If the zone transfer data is leaked mid transfer, this reveals a detailed map of a server, along with subdomains, IP addresses, and other sensitive DNS data.
+
+vulnerabilities in DNS zone transfers come from misconfigured DNS servers.
+
+in order to test a server for a name transfer vulnerability, we use:
+dig axfr @nsztm1.digi.ninja zonetransfer.me
+
+this requests a name transfer for zonetransfer.me
+
+
+
+
+Virtual Hosts
+web servers achieve hosting multiple websites on the same machine using virtual hosting, which allows them to differentiate between domains, subdomains, and even seperate websites with distinct content.
+
+The key difference between  Vhosts and Subdomains is their relationship to the DNS and web servers configuration.
+
+Subdomains - an extention of the main name: main.com has subdomain subdomain.main.com
+these have their own DNS records
+
+Virtual hosts - configurations within a web server that allow multiple websites or apps to be hosted on a single server. they can be associated with top level domains. each virtual host can have its own separate configuration, enabling precise control over how requests are handled.
+
+there are a few types of virtual hosting, being:
+
+Name-Based Virtual Hosting: This method relies solely on the HTTP host header to distinguish between websites. it is the most common and flexible method. However, it relise on the web server to support name based virtual hosting, and can have limitations with SSL/TLS
+
+IP-Based Virtual Hosting: This assings a unique IP address to each website hosted on a server. generally better, but more expensive and less scaleable
+
+Port-Based Virtual Hosting: DIfferent websites are associated with different ports on the same IP address. this isnt common or user friendly
+
+
+a few tools can be used to discover vhosts, like: gobuster, Feroxbuster, ffuf
+
+
+Gobuster
+gobuster systematicallt sends HTTP requests with different Host headers to a target IP address and then analyses the responses to identify valid virtual hosts.
+
+There are a couple things to prepare before brute forcing:
+Target IP address
+Wordlist
+
+the usual command to bruteforce virtualhosts looks like:
+gobuster vhost -u http://<ip_address> -w <wordlist_file> --append-domain
+
+other useful arguments worth knowing are:
+-t 	set the number of threads for faster scanning
+-k	ignore SSL/TLS certificate errors
+-o	save output to a file for later analysis
+
+
+
+Certificate transparency logs
+these are append only ledgers that record the issuance of SSL/TLS certificates. Whenever a certificate authority issues a new certificate, it must submit it to multiple CT logs. independent organisations maintain these logs, and they are open for all to inspect
+
+
+CT logs are perfect for our purposes, as they typically detail all the subdomains and domains used by a web service, even defunct ones or ones that may not be easily guessable.
+
+
+one tool we can use is crt.sh, which provides both a website, and an API which allows us to run queries through our CLI.
+
+to interact with the API and get an output in JSON, we can use the following command:
+
+curl -s "https://crt.sh/?
+q=<website.com>&output=json" | jq -r '.[]
+| select(.name_value | contains("<extra_serach_param>")) | .name_value' | sort -u
+
+
+
+FINGERPRINTING
+
+fingerprinting is a cornerstone for web recon for many reasons:
+
+Targeted attacks - knowing what technologies are in use, an attacker can focus their efforts on breaking those systems.
+Identifying misconfigurations - Its important for attackers to find and exploit possible open doors
+Prioritising targets - This allows attackers to identify vulnerable targets on a network, as well as targets potentially holding the most valuable data
+Building a comprehensive profile - This allows attackers to understand security posture and potential attack vectors.
+
+fingerprinting techniques
+Banner Grabbing - getting and analysing the banners prevented by web servers and other services, this can reveal server software, version numbers, and other details.
+Analysing HTTP headers - HTTP headers transmitted with every web page request and response often offer a wealth of information. The 'server' header typically discloses the web server software, while the 'X-Powered-By' header might reveal additional technologies like scripting languages or frameworks.
+Probing for specific requests - Sending specially crafted requests to the target machine can elicit unique responses that reveal specific technologies or versions. For example, certain error messages or behaviours are characteristic of particular web servers or  software components.
+Analysing page content - A web page's content, including its structure, scripts, and other elements, can often provide clues about the underlying technologies. There may be a copyright header that indicates specific software being used, for example.
+
+A variety of tools exist that automate the fingerprinting process, combining various techniques to identify web servers, OS's and content management systems, as well as other technologies. some of these tools are:
+
+Wappalyzer	Identifies a wide range of web technologies, incuding CMSs, frameworks, analytics tools, and more.
+BuiltWith	Web technology profiler that provides detailed reports on a websites technology stack.
+WhatWeb		Uses a vast database of signatures to identify various web technologies
+Nmap		Using NSE scripts can perform more sophistocated fingerprinting
+Netcraft	provides detailed reports on a website's technology, hosting provider, and security posture
+wafw00f		Helps determine if a WAF is present, and its type and configuration
+
+
+Banner grabbing
+To grab banners, we can use curl with the -I argument, this means it will only grab the HTTP headers. 
+
+
+Wafw00f
+Web Application Firewalls (WAFs) are security solutions designed to protect web applications from various attacks.
+
+to use Wafw00f to identify/detect a WAF, we use the command:
+
+wafw00f <target.com>
+
+Nikto
+Nikto is a powerful open-source web server scanner. 
+to scan target.com using Nikto, only running fingerprint modules:
+
+nikto -h <target.com> -Tuning b
+
+the -h argument specifies the target host, the -Tuning b argument tells nikto to run only the Software Identification modules.
+
+
+WEB CRAWLING
+crawling - often spidering - is the automated process of systematically browsing the world wide web.
+A crawler will be pointed at a webserver, and will start looking through its contents and returning useful info. When it finds a new link in that webpage, it adds it to a queue.
+
+There are two primary types of web crawling, breadth-first and depth-first:
+Breadth-first is where a crawler will identify its first layer of targets, probably one site. In that site, it may find links, these links will be the second layer. it goes to the first link in the second layer and finds more links. it will not go to these links (third layer) until it has finished crawling the second layer.
+This is useful for getting a broad overview of a websites structure and content
+
+Depth-first is where a crawler will be given a "seed url", this will be its basem and it will gradually work its way deeper and deeper into the web of connected pages.
+
+Extracting valuable information
+
+Links - links to other pages on and off the target site.
+comments - comment sections in blogs, forums, or other interactive pages can be a goldmine of information. they can reveal sensitive details, internal processes, or hints of vulnerabilities
+Metadata - this is data about data, like page titles, descriptions, keywords, author names, and dates
+Sensitive Files - This includes backup files (.bak, .old) config files (web.config, settings.php, *.conf) log files (access_log, error_log, *.log) and other files containing passwords, API keys, or other confidential information, such as database credentials, encryption keys, or even source code snippets.
+
+
+ROBOTS FILE
+
+this is used to tell web crawlers where they arent allowed to crawl, but they can be set to dissalow access to parts of a site for all user-agents.
+
+some browsers may allow you to manually visit the disallowed pages, its more of a polite request not to browse to these pages, and most legitimate web crawlers will also adhere to these directives.
+
+in recon, robots.txt is used to:
+Uncover hidden directories
+Map website structure
+Detect crawler traps
+
+
+
+WELL KNOWN URIs
+the .well-known standard, accessible via the /.well-known/ path on a web server centralises a websites critical metadata, including config files and information related to its services, protocols, and security mechanisms
+
+some always presend (R) or optional(O) pages in .well-known are denoted below:
+
+security.txt(R)		contains contact information to report vulnerabilities
+change-password(O)	provides a standard URL for users to change their password
+openid-configuration(R)	defines config details for OpenID Connect, an identity layer ontop of OAuth 2.0
+assetlinks.json(R)	used for verifying ownership of digital assets associated with a domain
+mta-sts.txt(R)		SPecifies the polict for SMTP MTA Strict transpot security to enhance email security
+
+the exploration of openid-configuration provides multiple exploration opportunities:
+Endpoint discovery - identifying Authorisation endpoints(URL for UAuth requests), Token Endpoints(Finding where URL tokens are issued), and Userinfo Endpoints(the endpoint that provides user information)
+JWLS URI -  This reveals the JSON Web Key Set, detailing the cryptographic keys used by the server
+Supported scopes and response types - understanding which scopes and response types are supported helps in mapping out the functionality and limitations of the OpenID connect implimentation.
+Algorithm Details - information about supported signing alorithms can be crucial for understanding the security measures in place
+
+
+WEB CRAWLERS
+
+Burp Suite Spider: Spider excels at mapping out webapps, identifying hidden content, uncovering potential vulners
+OWASP ZAP(Zed attack proxy): It can be used in automated and manual modes and includes a spider component to crawl web applications and identify potential vulnerabilities
+Scrapy(python framework): Used for building web crawlers. Provides rich features for extracting structured data from websites, handling complex crawling scenarios, and automating data processing. Its flexibility makes it ideal for tailored recon tasks
+Apache Nutch: Extensive and scaleable. Its desicned to handle massive crawls across the entire web or focus on specific domains. requires more techincal expertise to set up and configure, but perfect for large scale recon
+
+to use reconspider, go download it (go to ~/Tools) and do:
+python3 ReconSpider.py http://<target>.com
+
+When reconspider is done, it will output its findings to a JSON file, which has its arrays structured as:
+
+emails		Lists all email addresses found on the domain
+links		Lists URLS of links found within the domain
+external_files	lists URLS of external files like PDF's
+js_files	Lists URLs of JavaScript files used by the website
+form_fields	Lists form fields found on the domain
+images		Lists URLs of images found on the domain
+videos		lists URLs of videos found in the domain
+audio		Lists URLs of audio files found on the domain
+comments	Lists HTML comments found in the source code
+
+
+
+SEARCH ENGINE DISCOVERY
+
+this is the best form of passive recon, as our traffic will be coming form an expected user agent, and will blend in with other legitimate internet traffic
+other reasons are:
+The information gathered is open source
+breadth of information
+Ease of use
+Cost-effective
+
+SEARCH OPERATORS
+site:		Limits results to a specific website or domain
+inurl:		Finds pages with a specific term in the URL
+filetype:	Searches for files of a particular type
+intitle:	finds pages with a specific term in the title
+intext:		Searches for a term withing the body text of the pages
+inbody:		^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+cache:		Displays the cached version of a webpage(if available)
+link:		Finds pages that link to a specific webpage
+related:	finds websites related to a specific page
+info:		Provides a summary of information about a webpage
+define:		Provides a definition of a word or phrase
+numrange:	Searches for numbers within a specific range
+allintext:	finds page containing all specified words in the body text
+allinurl:	Finds pages containing all specified words in the URL
+allintitle:	Finds pages containing all specified words in the title
+AND		Narrows results by requiring all terms to be present
+OR		Broadens results by including pages with any of the terms
+NOT		Excludes results containing the specified term
+*		Wildcard
+..		Finds results within a specified numerical range
+" "		searches for exact phrases
+-		Excludes terms from the search results
+
+
+
+
+WEB ARCHIVES
+The wayback machine is  used to look at  old snapshots  of websites.
+
+
+
+AUTOMATING RECON
+We can automate recon for:
+Efficiency
+Scalability
+Consistency
+Comprehensive coverage
+Integration
+
+Reconnaissance Frameworks
+FinalRecon
+Recon-ng
+theHarvester
+SpiderFoot
+OSINT Framework
+
+FinalRecon
+This automated recon tool can offer the following recon information:
+
+Header Information
+Whois Lookups
+SSL Certificate Information
+crawler(Links, resources, vulnerabilities, images, robots.txt, sitemap.xml, wayback machine links)
+DNS enumeration
+Subdomain enumeration
+Directory Enumeration
+Wayback Machine
+
+to use FinalRecon ~/Tools/FinalRecon, then ./finalrecon.py with the following arguments:
+
+-h		shows help message and exits
+--url		specify target
+--headers	Retrieve header info on the target
+--sslinfo	get SSL cert information for the target URL
+--whois		Performs a whois lookup against the target
+--crawl		crawl the target website
+--dns		perform dns enumeration against the target
+--sub		enumerates subdomains on the target
+--dir		search for directories on the target
+--wayback	Retreive wayback URLs for the target
+--ps		perform a fast port scan on the target
+--full		Perform a full reconnaissance scan on the target
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

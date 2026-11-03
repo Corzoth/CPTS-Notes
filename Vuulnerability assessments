@@ -1,0 +1,207 @@
+Vulnerability assessments are fundamentally different from penetration tests, as a vuknerability assessment can be done starting from any stage, and once vulnerabilities are discovered, they arent ever exploited.
+Penetration tests consist of:
+Black box - an attacker is given no access to the target system (with the exception of occaisionally getting network access or an ethernet port)
+grey box - an attacker is given partial access/information on the systems structure
+white box - an attacker is given full access to a network, and given a full layout of its structure
+
+physical penetration tests require consideration too, with an attacker essentially seeing hw they can access a building through social engineering, or other means of access
+
+a vulnerability assessment aims to identify and categorise risks for security weaknesses rekated to assets within an environment. vulnerability assessments also incude remediation instructions.
+
+there are 8 steps to engaging in a vulnerability assessment:
+Conduct risk identification and analysis - Identify assets that are a part of an information system in a company, then assign risks to each asset
+
+Develop vulnerability scanning policices - this should identify a liable party or person who is responsible for everything written inside. The policy should also be approved by upper management before taking effect
+
+Identify the types of scans - with the identified devices present on the network, we would need to create a scan with these taken into account. typical scans are: network, host based, wireless based, applications
+
+configure the scans - essentially, give the scanner all in scope targets, and set the aggressiveness of the scan, time, and notifications
+
+Perform the scan - Allow the scan to run, and wait for the output
+
+Evaluate and consider possible risks - Risks associated with a vulnerability scan mostly relate to the availability of the target system. if the load created by the scan is excessive, the target may shut down, blocking real users from accessing the system
+
+Interpret scan results - If there is a publicly available tool to exploit a vulnerability that has been uncovered, this should take priority over others that may be found, but require more effort. It is also worth taking into account the CVSS score of these harder to exploit vulnerabilities, and scale them based on priority too, as opposed to just categorising them all as harder to exploit, and not having any order of priority when it comes to fixing these.
+
+Create a remediation and mitigation plan - create a report with the order in which vulnerabilities should be fixed
+
+when a company plans a cybersecurity strategy, they must have a list of the assets that they must protect, ensuring none are left out.
+this includes:
+hardware - servers, drives
+software - Google drive, dropbox, 
+data - scripts for websites, customer information, backups
+IoT devices - routers, hubs, switches
+
+Assesment standards
+PCI-DSS
+This is the standard in information security that implements requirements for organisations that handle credit cards.
+This requires internal and external scanning of assets
+the PCI  DSS goals are as follows:
+Build and maintain a secure network
+Protect cardholder data
+Maintain a vulnerability management program
+Implement strong access control measures
+regularly monitor and test networks
+maintain an information security policy
+
+HIPAA(Health insurance portability and accountability act)
+This is used to protect patient data. a risk assessment and vulnerability identification are required to maintain HIPAA accreditation
+
+FISMA(Federal information security management act)
+a set of standards and guidelines used to safeguard government operations and information. The act requires an organisation to provide documentation and proof of a vulnerability management program to maintain information technology systems' proper Confidentiality, Integrity, and Availability
+
+ISO 27001
+this is a worldwide act to manage infosec. this requires organisations to perform quarterly external and internal scans
+
+PENETRATION TESTING STANDARDS
+Penetration tests should always be performed with rules and guidelines. There must always be a specified scope, the owner of a network must have a signed legal contract with pentesters outlining what they're allowed to do, and what they arent. penetration testers shuldnt intentionally or otherwise harm a system under any circumstances (damage to hardware, changing passwords, editing config files)
+
+PTES
+PTES outlines the phases of a penetration test and how it should be conducted, these phases are:
+Pre-engagement interactions
+Intelligence gathering
+Threat Modeling
+Vulnerability analysis
+exploitation
+post exploitation
+reporting
+
+OSSTMM
+this is the Open Source Security Testing Methodology Manual
+this divides penetration tests into five channels:
+
+Human security (phishing/social engineering)
+Physical security
+Wireless Communications ( wifi, bluetooth)
+Telecom
+Data networks
+
+NIST
+there are 4 phases in the NIST methodology, but these are a lot more nonspecific:
+Planning
+Discovery
+Attack
+Reporting
+
+OWASP
+they maintain various different guidelines for penetration testing:
+WTSG (Web sec testing guide)
+MSTG (Mobile sec testing guide)
+Firmware Security Testing Methodology
+
+
+CVSS (Common Vulnerability Scoring System)
+CVSS marks things based on risk based on the following:
+Damage Potential
+Reproducibility
+Exploitability
+Affected Users
+Discoverability
+
+NESSUS
+To start nessus, run:
+sudo systemctl start nessusd.service
+
+then, go to https://localhost:8834
+
+A Nessus basic network scan has the following tabs that need to be set:
+Discovery
+this gives us the option to scan for fragile devices (devices that scans may interfere with, such as printers)
+Port scanning (Part of discovery)
+we can select whether to scan common prots, all ports, or a user-defined range
+
+Assessment
+in this tab, we can define whether web application scanning should be enabled. we can also define a custom user agent and various other options.
+nessus can also attempt a dictionary based password attack should it be allowed to.
+Nessus can also perform user enumeration
+if we opt to perform RID Brute Forcing(for user enum), we can set the starting and ending UIDs for both domain and local accounts 
+
+HTB doesnt cover the reporting Tab
+
+Advanced
+on the advanced tab, safe checks are enabled by default. This prevents Nessus from running checks that may negatively impact the target device or network. we can also change settings that prevent nessus from scanning if higher traffic is detected, so that normal users can continue to use the network
+
+Scan Policies(advanced)
+nessus gives us the option to create scan policies. these are customised scans that allow us to define specific scan options, save the policy configuration, and have them available to us under scan templates when creating a new scan. This gives us the ability to create targeted scans for a number of scenarios, such as slower, more evasive scans, a web-focused scan, or create a scan for a particular client using one or several sets of credentials. Scan policies can be imported from other nessus scanners or exported to later be imported to another nessus scanner.
+
+To create a new scan policy, we can click on the New policy button in the top right, and we will be presented with the list of pre-configured scans. We can choose a scan, such as the basic network scan, then customise it, or we can create our own. to create a fully customised scan with no pre-configured reccomendations, we can press advanced scan.
+We can then give it a name and subscription
+from here, we can configure settings, add in any credentials, specify any compliance standards to run the scan against. We can also choose to disable entire plugin families, or specific ones.
+After this, we can click save. when starting a new scan, our custom one should appear under the user defined tab of scan presets
+
+Nessus works with plugins written in NASL(Nessus Attack Scripting Language), and can target new vulnerabilities. These plugins contain information such as the vulnerabilities name, impact, remediation, and a way to test for the presence of a particular issue.
+
+Plugins are rated by severity level.
+
+The Plugins tab provides more information on particular detection, including mitigation. However, these scripts can flag false positives. as some configurations are secure and more helpful, as a pose to very secure and a pain to deal with.
+
+imagine a system where SSL/TLS is not implimented, as we do not need security to that calibre, and implimenting it would break existing infrastructure. if there is a plugin that would lfag this as vulnerable, we can add a plugin rule to prevent this false positive from being flagged.
+under the resources section, we can select plugin rules. in the new plugin rule, we input the host to be excluded, alongside the plugin ID, then give it a rule like exclude output.
+
+Nessus also supports credentialed scanning and provides a lot of flexibility by supporting LM/NTLM hashes, kerberos authentication, and password authentication.
+
+credentials can be configured for ost based authentication via SSH with a password, public key, certificate, or kerberos based authentication. It can also be configured for windows host based authentication with a password, kerberos, LM hash or NTLM hash.
+
+Nessus also supports authntication for a variety of databases types including orac,e PostgreSQL, DB2, MySQL, SQL server, MongoDB, and sysbase
+
+Nessus can also perform plaintext authentication to servies such as FTP, HTTP, IMAP, IPMI, Telnet, and more:
+
+Finally, we can check the Nessus output to check whether the authentication to the target application or service with the supplied credentials was successful.
+
+
+Outputs
+Nessus can export scan results in a variety of ways, like in raw form, archived, or passe to tools like EyeWitness(takes screenshots of all web applications identified by nessus)
+
+Reports
+We can choose to export scans as .pdf, .html. .csv.
+this gives us the option to list hosts, see the total number of vulners present, show details to see the severity and CVSS score of each identified vulner.
+
+we can use a script like nessus_downloader.rb in our CLI to download these reports in a faster way.
+
+
+Scanning Issues
+some firewalls will block our scans, to get around this, we can go to the advanced scan configuration page and disable the Ping the remote host option. This will get around the firewall, however, it will also open the possibility of nessus interpreting dead hosts as alive ones, and provide many false positives.
+
+we can also go to performance options and modify the max concurrent checks per host if the target network is sensetive, or often under a heavy load.
+
+we should also ensure that these more overload-prone servers are in a state where we can, or should scan them, by using vnstat.
+
+in order to use vnstat to listen on the eth0 interface, we use:
+
+sudo vnstat -l -i eth0
+
+we can run that command again while scanning to assess our impact on the target network
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
